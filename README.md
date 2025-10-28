@@ -5,7 +5,15 @@
 OmniMood transforms raw, fragmented, multi-chain data into a single, trusted sentiment score and broadcasts it on the PushChain blockchain, making it a universally accessible piece of on-chain intelligence.
 
 [Deployed Contract](https://donut.push.network/address/0x5834AB6091b0cD0dd4619AEE30E41cE6426De0eA?tab=index)
+
 [Sentiment Transactions Minted On-Chain](https://donut.push.network/address/0x5834AB6091b0cD0dd4619AEE30E41cE6426De0eA?tab=txs)
+
+[Pitch Video](https://youtu.be/esHhuLmv1cE)
+
+<img width="1737" height="1854" alt="screencapture-localhost-3000-2025-10-28-23_20_51" src="https://github.com/user-attachments/assets/a67a1f51-6be6-441b-abb7-1e2e3202678e" />
+<img width="1424" height="1864" alt="screencapture-localhost-3000-2025-10-28-20_55_14" src="https://github.com/user-attachments/assets/01c7f514-8310-42f2-b44e-05b83a0adf78" />
+<img width="623" height="1163" alt="screencapture-localhost-5173-2025-10-28-23_21_24" src="https://github.com/user-attachments/assets/3619f483-7d7d-4f15-9e4b-f584dc94c268" />
+
 
 This project serves as a full-stack dApp demonstrating how to:
 1.  Aggregate on-chain data from multiple blockchains (e.g., Sepolia & Base Sepolia).
