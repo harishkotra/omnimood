@@ -1,0 +1,22 @@
+{
+  "name": "omnimood",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@pushchain/core": "^2.1.6",
+    "cors": "^2.8.5",
+    "cross-fetch": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "openai": "^6.7.0"
+  }
+}

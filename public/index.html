@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OmniMood: Cross-Chain AI Sentiment Oracle</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; margin-top: 40px; background-color: #f8f9fa; color: #212529; line-height: 1.6; }
+        #app-container { max-width: 800px; margin: 0 auto; }
+        #main-card { background-color: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+        h1 { color: #5A40C5; font-size: 2.5rem; }
+        #score-container { position: relative; }
+        #score { font-size: 120px; font-weight: 700; margin: 10px 0; }
+        #score-meaning { font-size: 1.2rem; font-weight: 500; min-height: 25px; transition: color 0.5s; }
+        .positive { color: #198754; } .negative { color: #dc3545; } .neutral { color: #6c757d; }
+        #chain-selector { margin-top: 20px; }
+        #chain-selector label { font-weight: 600; display: block; margin-bottom: 10px; }
+        #chain-dropdown { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; }
+        button { background-color: #5A40C5; color: white; border: none; padding: 16px 32px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; margin-top: 20px; transition: all 0.3s; font-weight: 600; }
+        button:disabled { background-color: #adb5bd; cursor: not-allowed; }
+
+        p.subtitle { color: #6c757d; }
+        #last-updated { font-size: 1rem; color: #888; min-height: 22px; }
+        .positive { color: #198754; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        button { background-color: #5A40C5; color: white; border: none; padding: 16px 32px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; margin-top: 25px; transition: all 0.3s; font-weight: 600; }
+        button:hover:not(:disabled) { background-color: #4833a0; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        button:disabled { background-color: #adb5bd; cursor: not-allowed; }
+        #live-log { margin-top: 30px; text-align: left; background-color: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; display: none; }
+        #live-log h3 { margin-top: 0; color: #343a40; border-bottom: 2px solid #5A40C5; padding-bottom: 10px; }
+        .log-item { margin-bottom: 20px; opacity: 0; transform: translateY(10px); transition: opacity 0.4s, transform 0.4s; }
+        .log-item.visible { opacity: 1; transform: translateY(0); }
+        .log-item code { background-color: #e9ecef; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 0.85rem; word-break: break-all; display: block; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+        .log-label { font-weight: 600; color: #495057; display: block; margin-bottom: 5px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #5A40C5; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 12px; }
+        a { color: #5A40C5; text-decoration: none; }
+        details { margin-top: 20px; text-align: left; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; }
+        summary { font-weight: 600; cursor: pointer; color: #5A40C5; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <h1>OmniMood: Cross-Chain AI Sentiment Oracle</h1>
+        <p class="subtitle">Analyzing USDC activity on <strong>Sepolia</strong> & <strong>Base Sepolia</strong>, with results broadcast on <strong>PushChain</strong>.</p>
+
+        <div id="main-card">
+            <div id="score-container">
+                <div id="score">--</div>
+                <div id="score-meaning" class="neutral">Select chains and run analysis</div>
+            </div>
+            <div id="last-updated">Loading...</div>
+            
+            <div id="chain-selector">
+                <label for="chain-dropdown">Select Chains to Analyze (up to 5):</label>
+                <select id="chain-dropdown" multiple size="5"></select>
+                <p id="selection-error" style="color: red; min-height: 1.2em;"></p>
+            </div>
+
+            <button id="update-btn" onclick="triggerUpdate()">Run New Analysis</button>
+            <div id="live-log">
+                <h3>Live Process Log</h3>
+                <div id="log-status" class="log-item"></div>
+                <div id="log-raw-data" class="log-item"></div>
+                <div id="log-ai-system-prompt" class="log-item"></div>
+                <div id="log-ai-user-prompt" class="log-item"></div>
+                <div id="log-ai-raw-response" class="log-item"></div>
+                <div id="log-ai-score" class="log-item"></div>
+                <div id="log-tx" class="log-item"></div>
+                <div id="log-final" class="log-item"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = "http://localhost:3000";
+        let allChains = []; // Will store chain data from backend
+
+        const PUSH_SCAN_BASE_URL = "https://donut.push.network/tx/";
+        let statusInterval = null;
+
+        // Get UI elements
+        const ui = {
+            updateBtn: document.getElementById('update-btn'),
+            liveLogDiv: document.getElementById('live-log'),
+            logStatus: document.getElementById('log-status'),
+            logRawData: document.getElementById('log-raw-data'),
+            logAiSystemPrompt: document.getElementById('log-ai-system-prompt'),
+            logAiUserPrompt: document.getElementById('log-ai-user-prompt'),
+            logAiRawResponse: document.getElementById('log-ai-raw-response'),
+            logAiScore: document.getElementById('log-ai-score'),
+            logTx: document.getElementById('log-tx'),
+            logFinal: document.getElementById('log-final'),
+            lastUpdatedDiv: document.getElementById('last-updated'),
+            scoreDiv: document.getElementById('score'),
+        };
+
+        function getScoreMeaning(score) {
+            if (score > 6) return "Very Bullish Activity";
+            if (score > 2) return "Bullish Activity";
+            if (score >= -2) return "Neutral Activity";
+            if (score >= -6) return "Bearish Activity";
+            return "Very Bearish Activity";
+        }
+
+        async function fetchChains() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-chains`);
+                allChains = await response.json();
+                const dropdown = document.getElementById('chain-dropdown');
+                allChains.forEach(chain => {
+                    const option = document.createElement('option');
+                    option.value = chain.chainId; // Use chainId as the value
+                    option.textContent = chain.name;
+                    dropdown.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Could not fetch chain list:", error);
+                document.getElementById('chain-selector').innerHTML = '<p style="color: red;">Could not load chain list from server.</p>';
+            }
+        }
+
+        // This function now fetches the latest score from OUR backend, not directly from PushChain
+        async function displayOracleData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-current-score`);
+                if (!response.ok) throw new Error("Server couldn't fetch the latest score.");
+                
+                const data = await response.json();
+                
+                ui.scoreDiv.innerText = data.score;
+                ui.scoreDiv.className = data.score > 10 ? 'positive' : data.score < -10 ? 'negative' : 'neutral';
+                ui.lastUpdatedDiv.innerText = `Last Updated: ${new Date(data.timestamp * 1000).toLocaleString()}`;
+
+                document.getElementById('score-meaning').innerText = getScoreMeaning(data.score);
+                document.getElementById('score-meaning').className = ui.scoreDiv.className;
+
+            } catch (error) {
+                console.error("Error fetching latest score:", error);
+                ui.lastUpdatedDiv.innerText = "Error loading latest score from the server.";
+                ui.scoreDiv.innerText = '⚠️';
+                ui.scoreDiv.className = 'negative';
+            }
+        }
+        
+        // The rest of the functions (triggerUpdate, pollStatus, clearLogs) are the same as before
+        function clearLogs() {
+            Object.values(ui).forEach(el => { if (el.classList && el.classList.contains('log-item')) { el.innerHTML = ''; el.classList.remove('visible'); } });
+            ui.liveLogDiv.style.display = 'none';
+        }
+        function finalizeUIState() {
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = null;
+            ui.updateBtn.disabled = false;
+        }
+        async function triggerUpdate() {
+
+            const dropdown = document.getElementById('chain-dropdown');
+            const errorP = document.getElementById('selection-error');
+            const selectedOptions = Array.from(dropdown.selectedOptions);
+            
+            errorP.textContent = ''; // Clear previous errors
+            if (selectedOptions.length === 0 || selectedOptions.length > 5) {
+                errorP.textContent = 'Please select between 1 and 5 chains.';
+                return;
+            }
+
+            const selectedChains = selectedOptions.map(option => {
+                // Find the chain object based on the selected value (chainId)
+                return allChains.find(chain => chain.chainId == option.value);
+            });
+
+            // Ensure we found all selected chains (should always be true if UI is correct)
+            if (selectedChains.some(chain => !chain)) {
+                errorP.textContent = 'Error: Some selected chain IDs were not found.';
+                console.error("Some selected chain IDs were not found in the allChains list.");
+                return;
+            }
+
+            ui.updateBtn.disabled = true;
+            clearLogs();
+            ui.liveLogDiv.style.display = 'block';
+            ui.logStatus.innerHTML = `<p><span class="spinner"></span>Triggering backend process...</p>`;
+            ui.logStatus.classList.add('visible');
+
+            try {
+                // Prepare the data to send in the request body
+                const requestBody = {
+                    chains: selectedChains // Send the array of selected chain objects
+                };
+
+                // Make the POST request with the body
+                const response = await fetch(`${API_BASE_URL}/trigger-oracle-update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json', // Important: Tell the server it's JSON
+                    },
+                    body: JSON.stringify(requestBody) // Convert the object to a JSON string
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.message || 'Failed to trigger.');
+                }
+                pollStatus(); // Start polling the status after successful trigger
+            } catch (error) {
+                ui.logStatus.innerHTML = `<p class="negative"><strong>Error:</strong> ${error.message}</p>`;
+                finalizeUIState();
+            }
+        }
+        function pollStatus() {
+            if (statusInterval) clearInterval(statusInterval);
+            const updateStepUI = (element, content) => { if (content && !element.innerHTML) { element.innerHTML = content; element.classList.add('visible'); } };
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/status`);
+                    if (!response.ok) throw new Error('Server not responding.');
+                    const state = await response.json();
+                    updateStepUI(ui.logStatus, `<p><span class="${state.isUpdating ? 'spinner' : '✅'}"></span>${state.currentStep}</p>`);
+                    if (state.rawEventsData) {
+                        const jsonData = JSON.stringify(state.rawEventsData.slice(0, 3), null, 2);
+                        const moreText = state.rawEventsData.length > 3 ? `\n... and ${state.rawEventsData.length - 3} more.` : '';
+                        updateStepUI(ui.logRawData, `<p><span class="log-label">1. Raw Events (Sample):</span><code>${jsonData}${moreText}</code></p>`);
+                    }
+                    if (state.aiSystemPrompt) updateStepUI(ui.logAiSystemPrompt, `<p><span class="log-label">2a. System Prompt:</span><code>${state.aiSystemPrompt}</code></p>`);
+                    if (state.aiUserPrompt) updateStepUI(ui.logAiUserPrompt, `<p><span class="log-label">2b. Data Sent to AI:</span><code>${state.aiUserPrompt}</code></p>`);
+                    if (state.aiRawResponse) updateStepUI(ui.logAiRawResponse, `<p><span class="log-label">3. Gaia AI Raw Response:</span><code>${state.aiRawResponse}</code></p>`);
+                    if (state.aiScore !== null) updateStepUI(ui.logAiScore, `<p><span class="log-label">4. Parsed Score:</span> <code class="${state.aiScore > 10 ? 'positive' : 'negative'}">${state.aiScore}</code></p>`);
+                    if (state.transactionHash) updateStepUI(ui.logTx, `<p><span class="log-label">5. PushChain Tx:</span><a href="${PUSH_SCAN_BASE_URL}${state.transactionHash}" target="_blank">${state.transactionHash}</a></p>`);
+                    if (state.finalMessage) updateStepUI(ui.logFinal, `<p><strong>Result:</strong> ${state.finalMessage}</p>`);
+                    if (!state.isUpdating) {
+                        finalizeUIState();
+                        displayOracleData(); 
+                    }
+                } catch (error) {
+                    ui.logStatus.innerHTML = `<p class="negative"><strong>Error:</strong> ${error.message}</p>`;
+                    finalizeUIState();
+                }
+            }, 2000);
+        }
+
+        window.onload = () => {
+            // Assign UI elements
+            Object.assign(ui, {
+                 updateBtn: document.getElementById('update-btn'),
+                 liveLogDiv: document.getElementById('live-log'),
+                 logStatus: document.getElementById('log-status'),
+                 logRawData: document.getElementById('log-raw-data'),
+                 lastUpdatedDiv: document.getElementById('last-updated'),
+                 scoreDiv: document.getElementById('score'),
+            });
+            fetchChains();
+            displayOracleData();
+        };
+    </script>
+</body>
+</html>
